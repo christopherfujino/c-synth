@@ -10,16 +10,19 @@ to the default PCM device for 5 seconds of data.
 
 #include <alsa/asoundlib.h>
 
+void loop(int loops, int size, snd_pcm_t *handle, snd_pcm_uframes_t frames);
+
+void play(snd_pcm_t *handle, char *buffer, snd_pcm_uframes_t frames);
+
 int main() {
   long loops;
-  int rc;
   int size;
+  int rc;
   snd_pcm_t *handle;
   snd_pcm_hw_params_t *params;
   unsigned int val;
   int dir;
   snd_pcm_uframes_t frames;
-  char *buffer;
 
   /* Open PCM device for playback. */
   rc = snd_pcm_open(&handle, "default",
@@ -73,7 +76,6 @@ int main() {
   snd_pcm_hw_params_get_period_size(params, &frames,
                                     &dir);
   size = frames * 4; /* 2 bytes/sample, 2 channels */
-  buffer = (char *) malloc(size);
 
   /* We want to loop for 5 seconds */
   snd_pcm_hw_params_get_period_time(params,
@@ -82,6 +84,17 @@ int main() {
    * period time */
   loops = 5000000 / val;
 
+  loop(loops, size, handle, frames);
+
+  snd_pcm_drain(handle);
+  snd_pcm_close(handle);
+
+  return 0;
+}
+
+void loop(int loops, int size, snd_pcm_t *handle, snd_pcm_uframes_t frames) {
+  int rc;
+  char *buffer = (char *) malloc(size);
   while (loops > 0) {
     loops--;
     rc = read(0, buffer, size);
@@ -92,24 +105,23 @@ int main() {
       fprintf(stderr,
               "short read: read %d bytes\n", rc);
     }
-    rc = snd_pcm_writei(handle, buffer, frames);
-    if (rc == -EPIPE) {
-      /* EPIPE means underrun */
-      fprintf(stderr, "underrun occurred\n");
-      snd_pcm_prepare(handle);
-    } else if (rc < 0) {
-      fprintf(stderr,
-              "error from writei: %s\n",
-              snd_strerror(rc));
-    }  else if (rc != (int)frames) {
-      fprintf(stderr,
-              "short write, write %d frames\n", rc);
-    }
+    play(handle, buffer, frames);
   }
-
-  snd_pcm_drain(handle);
-  snd_pcm_close(handle);
   free(buffer);
+}
 
-  return 0;
+void play(snd_pcm_t *handle, char *buffer, snd_pcm_uframes_t frames) {
+  int rc = snd_pcm_writei(handle, buffer, frames);
+  if (rc == -EPIPE) {
+    /* EPIPE means underrun */
+    fprintf(stderr, "underrun occurred\n");
+    snd_pcm_prepare(handle);
+  } else if (rc < 0) {
+    fprintf(stderr,
+            "error from writei: %s\n",
+            snd_strerror(rc));
+  }  else if (rc != (int)frames) {
+    fprintf(stderr,
+            "short write, write %d frames\n", rc);
+  }
 }

@@ -2,7 +2,10 @@ objects = main.o
 binary = main
 
 main: main.o
-	gcc -o $(binary) $(objects) -lasound
+	cc -o $(binary) $(objects) -lasound
+
+debug: main.o
+	cc -g -o $(binary) $(objects) -lasound
 
 main.o: main.c
 

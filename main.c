@@ -1,14 +1,18 @@
-/*
-
-This example reads standard from input and writes
-to the default PCM device for 5 seconds of data.
-
-*/
-
 /* Use the newer ALSA API */
 #define ALSA_PCM_NEW_HW_PARAMS_API
 
 #include <alsa/asoundlib.h>
+#include <stdbool.h>
+
+/* Set period size to 32 frames. */
+#define PERIOD_SIZE 32
+
+/* 44100 bits/second sampling rate (CD quality) */
+#define SAMPLE_RATE 44100
+
+// Samples are 2 bytes long
+#define SAMPLE_MIN -32767
+#define SAMPLE_MAX 32767
 
 void loop(int loops, int size, snd_pcm_t *handle, snd_pcm_uframes_t frames);
 
@@ -50,16 +54,17 @@ int main() {
   snd_pcm_hw_params_set_format(handle, params,
                               SND_PCM_FORMAT_S16_LE);
 
-  /* Two channels (stereo) */
-  snd_pcm_hw_params_set_channels(handle, params, 2);
+  /* One channel (mono) */
+  snd_pcm_hw_params_set_channels(handle, params, 1);
 
-  /* 44100 bits/second sampling rate (CD quality) */
-  val = 44100;
+  val = SAMPLE_RATE;
+
   snd_pcm_hw_params_set_rate_near(handle, params,
                                   &val, &dir);
 
-  /* Set period size to 32 frames. */
+  //frames = PERIOD_SIZE;
   frames = 32;
+  // comment
   snd_pcm_hw_params_set_period_size_near(handle,
                               params, &frames, &dir);
 
@@ -75,7 +80,7 @@ int main() {
   /* Use a buffer large enough to hold one period */
   snd_pcm_hw_params_get_period_size(params, &frames,
                                     &dir);
-  size = frames * 4; /* 2 bytes/sample, 2 channels */
+  size = frames * 2; /* 2 bytes/sample, 1 channel */
 
   /* We want to loop for 5 seconds */
   snd_pcm_hw_params_get_period_time(params,
@@ -94,17 +99,27 @@ int main() {
 
 void loop(int loops, int size, snd_pcm_t *handle, snd_pcm_uframes_t frames) {
   int rc;
+  char sample;
+  printf("size: %i\n", size);
   char *buffer = (char *) malloc(size);
-  while (loops > 0) {
-    loops--;
-    rc = read(0, buffer, size);
-    if (rc == 0) {
-      fprintf(stderr, "end of file on input\n");
-      break;
-    } else if (rc != size) {
-      fprintf(stderr,
-              "short read: read %d bytes\n", rc);
+  bool min_max = true;
+  //while (loops > 0) {
+  while (1) {
+    //loops--;
+    sample = min_max ? 0x80 : 0x00;
+    for (int i = 0; i < size; i++) {
+      *(buffer + i) = sample;
     }
+    min_max = !min_max;
+
+    //rc = read(0, buffer, size);
+    //if (rc == 0) {
+    //  fprintf(stderr, "end of file on input\n");
+    //  break;
+    //} else if (rc != size) {
+    //  fprintf(stderr,
+    //          "short read: read %d bytes\n", rc);
+    //}
     play(handle, buffer, frames);
   }
   free(buffer);
